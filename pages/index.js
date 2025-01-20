@@ -1,114 +1,243 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import React, { useState, useEffect, useCallback } from 'react';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const GRID_SIZE = 20;
+const CELL_SIZE = 20;
+const INITIAL_SNAKE_LENGTH = 3;
+const GAME_SPEED = 100;
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const directions = {
+  UP: { x: 0, y: -1 },
+  DOWN: { x: 0, y: 1 },
+  LEFT: { x: -1, y: 0 },
+  RIGHT: { x: 1, y: 0 },
+};
+
+const generateFood = (snake) => {
+  let food;
+  do {
+    food = {
+      x: Math.floor(Math.random() * GRID_SIZE),
+      y: Math.floor(Math.random() * GRID_SIZE),
+    };
+  } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+  return food;
+};
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [snake, setSnake] = useState(() => {
+    const centerX = Math.floor(GRID_SIZE / 2);
+    const centerY = Math.floor(GRID_SIZE / 2);
+    return Array(INITIAL_SNAKE_LENGTH).fill().map((_, i) => ({
+      x: centerX,
+      y: centerY + i,
+    }));
+  });
+  
+  const [direction, setDirection] = useState(directions.UP);
+  const [food, setFood] = useState(() => generateFood(snake));
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [touchStart, setTouchStart] = useState({ x: 0, y: 0 });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const checkCollision = useCallback((head) => {
+    if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+      return true;
+    }
+    return snake.some(segment => segment.x === head.x && segment.y === head.y);
+  }, [snake]);
+
+  const moveSnake = useCallback(() => {
+    if (gameOver) return;
+
+    setSnake(prevSnake => {
+      const head = {
+        x: prevSnake[0].x + direction.x,
+        y: prevSnake[0].y + direction.y,
+      };
+
+      if (checkCollision(head)) {
+        setGameOver(true);
+        return prevSnake;
+      }
+
+      const newSnake = [head, ...prevSnake];
+      
+      if (head.x === food.x && head.y === food.y) {
+        setScore(prev => prev + 1);
+        setFood(generateFood(newSnake));
+      } else {
+        newSnake.pop();
+      }
+
+      return newSnake;
+    });
+  }, [direction, food, gameOver, checkCollision]);
+
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    setTouchStart({
+      x: touch.clientX,
+      y: touch.clientY
+    });
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStart.x || !touchStart.y) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = touch.clientY - touchStart.y;
+    
+    const minSwipeDistance = 30;
+    
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (Math.abs(deltaX) > minSwipeDistance) {
+        if (deltaX > 0 && direction !== directions.LEFT) {
+          setDirection(directions.RIGHT);
+        } else if (deltaX < 0 && direction !== directions.RIGHT) {
+          setDirection(directions.LEFT);
+        }
+      }
+    } else {
+      if (Math.abs(deltaY) > minSwipeDistance) {
+        if (deltaY > 0 && direction !== directions.UP) {
+          setDirection(directions.DOWN);
+        } else if (deltaY < 0 && direction !== directions.DOWN) {
+          setDirection(directions.UP);
+        }
+      }
+    }
+    
+    setTouchStart({ x: 0, y: 0 });
+  };
+
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      switch (e.key) {
+        case 'ArrowUp':
+          if (direction !== directions.DOWN) setDirection(directions.UP);
+          break;
+        case 'ArrowDown':
+          if (direction !== directions.UP) setDirection(directions.DOWN);
+          break;
+        case 'ArrowLeft':
+          if (direction !== directions.RIGHT) setDirection(directions.LEFT);
+          break;
+        case 'ArrowRight':
+          if (direction !== directions.LEFT) setDirection(directions.RIGHT);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    const gameInterval = setInterval(moveSnake, GAME_SPEED);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+      clearInterval(gameInterval);
+    };
+  }, [direction, moveSnake]);
+
+  const resetGame = () => {
+    const centerX = Math.floor(GRID_SIZE / 2);
+    const centerY = Math.floor(GRID_SIZE / 2);
+    setSnake(Array(INITIAL_SNAKE_LENGTH).fill().map((_, i) => ({
+      x: centerX,
+      y: centerY + i,
+    })));
+    setDirection(directions.UP);
+    setFood(generateFood(snake));
+    setGameOver(false);
+    setScore(0);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="mb-4 text-xl font-bold">
+        Score: {score}
+      </div>
+      
+      <div 
+        className="relative bg-white border-2 border-gray-300 rounded-lg shadow-lg touch-none"
+        style={{
+          width: GRID_SIZE * CELL_SIZE,
+          height: GRID_SIZE * CELL_SIZE,
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Food */}
+        <div
+          className="absolute bg-red-500 rounded-full"
+          style={{
+            width: CELL_SIZE - 2,
+            height: CELL_SIZE - 2,
+            left: food.x * CELL_SIZE,
+            top: food.y * CELL_SIZE,
+          }}
+        />
+
+        {/* Snake */}
+        {snake.map((segment, index) => (
+          <div
+            key={index}
+            className="absolute bg-green-500 border border-green-600"
+            style={{
+              width: CELL_SIZE - 2,
+              height: CELL_SIZE - 2,
+              left: segment.x * CELL_SIZE,
+              top: segment.y * CELL_SIZE,
+              borderRadius: index === 0 ? '4px' : '0',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Mobile Controls */}
+      <div className="mt-8 grid grid-cols-3 gap-2 md:hidden">
+        <button
+          className="p-4 bg-gray-200 rounded"
+          onClick={() => direction !== directions.RIGHT && setDirection(directions.LEFT)}
+        >
+          ←
+        </button>
+        <div className="grid grid-rows-2 gap-2">
+          <button
+            className="p-4 bg-gray-200 rounded"
+            onClick={() => direction !== directions.DOWN && setDirection(directions.UP)}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            ↑
+          </button>
+          <button
+            className="p-4 bg-gray-200 rounded"
+            onClick={() => direction !== directions.UP && setDirection(directions.DOWN)}
           >
-            Read our docs
-          </a>
+            ↓
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          className="p-4 bg-gray-200 rounded"
+          onClick={() => direction !== directions.LEFT && setDirection(directions.RIGHT)}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          →
+        </button>
+      </div>
+
+      {/* Game Over Modal */}
+      {gameOver && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg text-center">
+            <h2 className="text-xl font-bold mb-4">Game Over!</h2>
+            <p className="mb-4">Final Score: {score}</p>
+            <button
+              onClick={resetGame}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
