@@ -1,31 +1,20 @@
 // pages/api/socket.js
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
-import { parse } from 'url';
-
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  runtime: 'edge',
+  regions: ['fra1'], // Choose a region close to your users
 };
 
 const games = new Map();
 const connections = new Map();
 
-if (!global.wss) {
-  global.wss = new WebSocketServer({ noServer: true });
-}
-
-const wss = global.wss;
-
-wss.on('connection', (ws, gameId) => {
-  const playerId = Math.random().toString(36).substring(7);
-  
-  // Store connection
-  if (!connections.has(gameId)) {
-    connections.set(gameId, new Map());
+export default async function handler(req) {
+  if (req.headers.get('upgrade') !== 'websocket') {
+    return new Response('Expected websocket', { status: 400 });
   }
-  connections.get(gameId).set(playerId, ws);
+
+  const { socket, response } = Deno.upgradeWebSocket(req);
+  const gameId = new URL(req.url).searchParams.get('gameId') || 'default';
+  const playerId = Math.random().toString(36).substring(7);
 
   // Initialize game state if needed
   if (!games.has(gameId)) {
@@ -35,23 +24,31 @@ wss.on('connection', (ws, gameId) => {
     });
   }
 
-  // Send initial game state
-  ws.send(JSON.stringify({
-    type: 'INIT',
-    playerId,
-    gameId,
-    state: getGameState(gameId),
-  }));
+  // Store connection
+  if (!connections.has(gameId)) {
+    connections.set(gameId, new Map());
+  }
+  connections.get(gameId).set(playerId, socket);
 
-  // Broadcast new player to others
-  broadcast(gameId, {
-    type: 'PLAYER_JOINED',
-    playerId,
-  }, playerId);
+  socket.onopen = () => {
+    // Send initial game state
+    socket.send(JSON.stringify({
+      type: 'INIT',
+      playerId,
+      gameId,
+      state: getGameState(gameId),
+    }));
 
-  ws.on('message', (data) => {
+    // Broadcast new player to others
+    broadcast(gameId, {
+      type: 'PLAYER_JOINED',
+      playerId,
+    }, playerId);
+  };
+
+  socket.onmessage = (event) => {
     try {
-      const message = JSON.parse(data);
+      const message = JSON.parse(event.data);
       
       switch (message.type) {
         case 'UPDATE_SNAKE':
@@ -65,9 +62,9 @@ wss.on('connection', (ws, gameId) => {
     } catch (error) {
       console.error('Error processing message:', error);
     }
-  });
+  };
 
-  ws.on('close', () => {
+  socket.onclose = () => {
     // Remove player
     connections.get(gameId)?.delete(playerId);
     games.get(gameId)?.players.delete(playerId);
@@ -83,8 +80,10 @@ wss.on('connection', (ws, gameId) => {
       connections.delete(gameId);
       games.delete(gameId);
     }
-  });
-});
+  };
+
+  return response;
+}
 
 function generateFood() {
   return {
@@ -117,27 +116,10 @@ function updatePlayerState(gameId, playerId, snake) {
 function broadcast(gameId, message, excludePlayerId = null) {
   const gameConnections = connections.get(gameId);
   if (gameConnections) {
-    for (const [playerId, connection] of gameConnections.entries()) {
+    for (const [playerId, socket] of gameConnections.entries()) {
       if (playerId !== excludePlayerId) {
-        connection.send(JSON.stringify(message));
+        socket.send(JSON.stringify(message));
       }
     }
   }
 }
-
-const server = createServer((req, res) => {
-  const { pathname } = parse(req.url);
-  
-  if (pathname === '/api/socket') {
-    const gameId = new URLSearchParams(parse(req.url).query).get('gameId');
-    
-    wss.handleUpgrade(req, req.socket, Buffer.alloc(0), (ws) => {
-      wss.emit('connection', ws, gameId || 'default');
-    });
-  } else {
-    res.writeHead(404);
-    res.end();
-  }
-});
-
-export default server;
