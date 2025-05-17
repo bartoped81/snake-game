@@ -1,7 +1,7 @@
 // pages/index.js
 import React, { useState, useEffect, useCallback } from 'react';
 
-const GRID_SIZE = 10;
+const GRID_SIZE = 20;
 const CELL_SIZE = 20;
 const INITIAL_SNAKE_LENGTH = 3;
 const GAME_SPEED = 100;
