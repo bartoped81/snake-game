@@ -1,7 +1,7 @@
 // pages/index.js
 import React, { useState, useEffect, useCallback } from 'react';
 
-const GRID_SIZE = 20;
+const GRID_SIZE = 10;
 const CELL_SIZE = 20;
 const INITIAL_SNAKE_LENGTH = 3;
 const GAME_SPEED = 100;
@@ -20,7 +20,9 @@ const generateFood = (snake) => {
       x: Math.floor(Math.random() * GRID_SIZE),
       y: Math.floor(Math.random() * GRID_SIZE),
     };
-  } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+  } while (
+    snake.some((segment) => segment.x === food.x && segment.y === food.y)
+  );
   return food;
 };
 
@@ -28,29 +30,41 @@ export default function Home() {
   const [snake, setSnake] = useState(() => {
     const centerX = Math.floor(GRID_SIZE / 2);
     const centerY = Math.floor(GRID_SIZE / 2);
-    return Array(INITIAL_SNAKE_LENGTH).fill().map((_, i) => ({
-      x: centerX,
-      y: centerY + i,
-    }));
+    return Array(INITIAL_SNAKE_LENGTH)
+      .fill()
+      .map((_, i) => ({
+        x: centerX,
+        y: centerY + i,
+      }));
   });
-  
+
   const [direction, setDirection] = useState(directions.UP);
   const [food, setFood] = useState(() => generateFood(snake));
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
 
-  const checkCollision = useCallback((head) => {
-    if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
-      return true;
-    }
-    return snake.some(segment => segment.x === head.x && segment.y === head.y);
-  }, [snake]);
+  const checkCollision = useCallback(
+    (head) => {
+      if (
+        head.x < 0 ||
+        head.x >= GRID_SIZE ||
+        head.y < 0 ||
+        head.y >= GRID_SIZE
+      ) {
+        return true;
+      }
+      return snake.some(
+        (segment) => segment.x === head.x && segment.y === head.y
+      );
+    },
+    [snake]
+  );
 
   const moveSnake = useCallback(() => {
     if (gameOver || !gameStarted) return;
 
-    setSnake(prevSnake => {
+    setSnake((prevSnake) => {
       const head = {
         x: prevSnake[0].x + direction.x,
         y: prevSnake[0].y + direction.y,
@@ -62,9 +76,9 @@ export default function Home() {
       }
 
       const newSnake = [head, ...prevSnake];
-      
+
       if (head.x === food.x && head.y === food.y) {
-        setScore(prev => prev + 1);
+        setScore((prev) => prev + 1);
         setFood(generateFood(newSnake));
       } else {
         newSnake.pop();
@@ -80,7 +94,7 @@ export default function Home() {
         setGameStarted(true);
         return;
       }
-      
+
       switch (e.key) {
         case 'ArrowUp':
           if (direction !== directions.DOWN) setDirection(directions.UP);
@@ -113,10 +127,14 @@ export default function Home() {
   const resetGame = () => {
     const centerX = Math.floor(GRID_SIZE / 2);
     const centerY = Math.floor(GRID_SIZE / 2);
-    setSnake(Array(INITIAL_SNAKE_LENGTH).fill().map((_, i) => ({
-      x: centerX,
-      y: centerY + i,
-    })));
+    setSnake(
+      Array(INITIAL_SNAKE_LENGTH)
+        .fill()
+        .map((_, i) => ({
+          x: centerX,
+          y: centerY + i,
+        }))
+    );
     setDirection(directions.UP);
     setFood(generateFood(snake));
     setGameOver(false);
@@ -134,14 +152,12 @@ export default function Home() {
           Start Game
         </button>
       )}
-      
+
       {gameStarted && (
-        <div className="mb-4 text-xl font-bold">
-          Score: {score}
-        </div>
+        <div className="mb-4 text-xl font-bold">Score: {score}</div>
       )}
-      
-      <div 
+
+      <div
         className="relative bg-white border-2 border-gray-300 rounded-lg shadow-lg"
         style={{
           width: GRID_SIZE * CELL_SIZE,
@@ -179,27 +195,35 @@ export default function Home() {
       <div className="mt-8 grid grid-cols-3 gap-2">
         <button
           className="p-4 bg-gray-200 rounded"
-          onClick={() => direction !== directions.RIGHT && setDirection(directions.LEFT)}
+          onClick={() =>
+            direction !== directions.RIGHT && setDirection(directions.LEFT)
+          }
         >
           ←
         </button>
         <div className="grid grid-rows-2 gap-2">
           <button
             className="p-4 bg-gray-200 rounded"
-            onClick={() => direction !== directions.DOWN && setDirection(directions.UP)}
+            onClick={() =>
+              direction !== directions.DOWN && setDirection(directions.UP)
+            }
           >
             ↑
           </button>
           <button
             className="p-4 bg-gray-200 rounded"
-            onClick={() => direction !== directions.UP && setDirection(directions.DOWN)}
+            onClick={() =>
+              direction !== directions.UP && setDirection(directions.DOWN)
+            }
           >
             ↓
           </button>
         </div>
         <button
           className="p-4 bg-gray-200 rounded"
-          onClick={() => direction !== directions.LEFT && setDirection(directions.RIGHT)}
+          onClick={() =>
+            direction !== directions.LEFT && setDirection(directions.RIGHT)
+          }
         >
           →
         </button>
